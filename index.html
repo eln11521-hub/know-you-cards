@@ -145,8 +145,8 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(1.7rem,5vw,2.3rem)
 
   <section class="invite" id="invite" hidden>
     <div><span>房間代碼</span><br><b id="inviteCode">----</b></div>
-    <span>把代碼和密碼傳給朋友，或傳邀請連結（密碼另外給）。</span>
-    <button class="ghost" id="copyLink">複製邀請連結</button>
+    <span>複製的邀請會附上代碼和連結，密碼請另外給。</span>
+    <button class="ghost" id="copyLink">複製邀請</button>
   </section>
 
   <nav class="levels" aria-label="選擇層級">
@@ -609,8 +609,9 @@ $("createBtn").addEventListener("click", () => createRoom());
 $("joinBtn").addEventListener("click", joinRoom);
 $("copyLink").addEventListener("click", async () => {
   const link = location.origin + location.pathname + "?room=" + code;
-  try { await navigator.clipboard.writeText(link); toast("已複製邀請連結，密碼記得另外給"); }
-  catch(e){ toast(link); }
+  const text = `來玩「認識你卡牌」！\n房間代碼：${code}\n加入連結：${link}\n密碼我另外傳給你`;
+  try { await navigator.clipboard.writeText(text); toast(`已複製邀請（代碼 ${code}），密碼記得另外給`); }
+  catch(e){ toast(`房間代碼 ${code} · ${link}`); }
 });
 addEventListener("beforeunload", () => { try { peer && peer.destroy(); } catch(e) {} });
 
