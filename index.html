@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>認識你卡牌</title>
+<meta name="description" content="從一排牌中抽卡，和朋友各自寫下答案再一起揭曉。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+/* Layout: a card table at night. Header and level chips on top, a fanned row of face-down
+   cards in the middle; a picked card flies up into a centered stage with the answer panel. */
+:root{
+  color-scheme:dark;
+  --table:#121c1d; --felt:#1d2e2e; --ink:#efe9dc; --muted:#98aaa5; --line:#2e4342;
+  --gold:#d6b26a; --paper:#f3eee3; --paper-ink:#2b2622; --panel:#192627;
+  --l1:#2e6a87; --l2:#69407c; --l3:#983a54;
+  --display:"LXGW WenKai TC","Kaiti TC","STKaiti",serif;
+  --body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --cw:clamp(58px,15vw,104px);
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:radial-gradient(120% 80% at 50% 62%,var(--felt) 0%,var(--table) 70%) fixed,var(--table);
+  color:var(--ink);font-family:var(--body);line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(40px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(1.7rem,5vw,2.3rem);margin:0;letter-spacing:.06em;line-height:1.2}
+.sub{margin:4px 0 0;color:var(--muted);font-size:.9rem}
+.room{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.85rem;background:rgba(0,0,0,.18);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.on{background:#7fc79a}
+.ghost{appearance:none;background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;font-size:.85rem}
+.ghost:hover{border-color:var(--gold);color:var(--gold)}
+.gold{appearance:none;background:var(--gold);border:0;color:#221c10;border-radius:999px;padding:8px 18px;font-weight:700;cursor:pointer}
+.gold:disabled{opacity:.45;cursor:default}
+
+.sheet{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:18px;display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.sheet h2{grid-column:1/-1;margin:0;font-family:var(--display);font-size:1.25rem}
+.sheet p{grid-column:1/-1;margin:-6px 0 0;color:var(--muted);font-size:.85rem}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:.75rem;letter-spacing:.12em;color:var(--muted)}
+.field input{background:var(--table);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font:inherit;min-width:0}
+.field.code input{text-transform:uppercase;letter-spacing:.3em;font-variant-numeric:tabular-nums}
+.sheet .actions{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sheet .msg{color:#e6a18a;font-size:.85rem}
+@media (max-width:520px){.sheet{grid-template-columns:1fr}}
+
+.invite{border:1px dashed var(--gold);border-radius:14px;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:rgba(214,178,106,.06)}
+.invite b{font-family:var(--display);color:var(--gold);letter-spacing:.25em;font-size:1.3rem;font-variant-numeric:tabular-nums}
+.invite span{font-size:.85rem;color:var(--muted)}
+
+.levels{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.lv{appearance:none;cursor:pointer;border:1px solid var(--line);background:rgba(0,0,0,.2);border-radius:999px;padding:7px 16px;display:flex;align-items:baseline;gap:8px}
+.lv b{font-family:var(--display);font-size:1.05rem;font-weight:700}
+.lv small{color:var(--muted);font-size:.75rem}
+.lv[aria-pressed="true"]{background:var(--c);border-color:var(--c)}
+.lv[aria-pressed="true"] small{color:rgba(255,255,255,.8)}
+
+.table{overflow-x:clip;padding-top:28px}
+.fan{position:relative;height:calc(var(--cw)*1.4 + 70px)}
+.fc{position:absolute;left:50%;bottom:30px;width:var(--cw);aspect-ratio:5/7;max-width:100%;margin-left:calc(var(--cw)/-2);
+  padding:0;border:0;background:none;cursor:pointer;transform-origin:50% 260%;
+  translate:var(--x) 0;rotate:var(--a);transition:translate .22s ease,filter .22s}
+.fc:hover,.fc:focus-visible{translate:var(--x) -18px;filter:brightness(1.12)}
+.fan.busy .fc{pointer-events:none}
+.back{position:relative;width:100%;height:100%;border-radius:var(--r,10px);overflow:hidden;
+  background:
+    repeating-linear-gradient(45deg,transparent 0 9px,rgba(214,178,106,.28) 9px 10px),
+    repeating-linear-gradient(-45deg,transparent 0 9px,rgba(214,178,106,.28) 9px 10px),
+    var(--c);
+  box-shadow:0 10px 22px -10px rgba(0,0,0,.7),0 0 0 1px rgba(0,0,0,.35);display:grid;place-items:center}
+.back::before{content:"";position:absolute;inset:7%;border:1px solid rgba(214,178,106,.7);border-radius:6px}
+.back span{position:relative;font-family:var(--display);color:var(--gold);font-size:calc(var(--cw)*.36);
+  width:1.6em;height:1.6em;display:grid;place-items:center;border-radius:50%;background:var(--c);border:1px solid rgba(214,178,106,.7)}
+.hint{text-align:center;color:var(--muted);font-size:.9rem;margin:0}
+.empty{text-align:center;display:grid;gap:10px;justify-items:center;padding:40px 0 20px}
+.empty p{margin:0;color:var(--muted)}
+
+.stage{position:fixed;inset:0;z-index:20;overflow-y:auto;background:rgba(8,12,12,.72);backdrop-filter:blur(3px);
+  padding:calc(24px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(32px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-direction:column;align-items:center;gap:18px;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}}
+.big{width:min(74vw,300px);aspect-ratio:5/7;max-width:100%;perspective:1400px;flex:none;transition:transform .55s cubic-bezier(.2,.8,.2,1)}
+.flip{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.3,.7,.2,1)}
+.flip.flipped{transform:rotateY(180deg)}
+.flip .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.flip .back{--r:18px}
+.flip .back span{font-size:3.2rem}
+.front{transform:rotateY(180deg);background:var(--paper);color:var(--paper-ink);border-radius:18px;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.8);padding:24px 22px;display:flex;flex-direction:column;justify-content:space-between}
+.front::before{content:"";position:absolute;inset:10px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-radius:12px;pointer-events:none}
+.front .tag{font-size:.75rem;letter-spacing:.16em;color:var(--c);font-weight:700;position:relative}
+.front .q{font-family:var(--display);font-size:clamp(1.3rem,5.4vw,1.75rem);line-height:1.55;text-wrap:balance;margin:0;position:relative}
+.front .mark{align-self:flex-end;font-family:var(--display);color:var(--c);font-size:1.3rem;position:relative}
+
+.panel{width:min(100%,380px);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel .say{margin:0;color:var(--muted);font-size:.9rem}
+.panel textarea{width:100%;min-height:84px;resize:vertical;background:var(--table);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;line-height:1.6}
+.row{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.status{font-size:.85rem;color:var(--muted)}
+.answers{display:flex;flex-direction:column;gap:10px}
+.ans{border-left:3px solid var(--c);padding:4px 0 4px 12px;min-width:0}
+.ans .who{font-size:.75rem;letter-spacing:.1em;color:var(--gold)}
+.ans p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.closeRow{display:flex;justify-content:center}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));translate:-50% 0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:.85rem}
+
+@media (prefers-reduced-motion: reduce){.fc,.big,.flip{transition:none}.stage{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app" style="--c:var(--l1)">
+  <header>
+    <div>
+      <h1>認識你卡牌</h1>
+      <p class="sub">抽一張，誠實回答，再換對方回答同一題。</p>
+    </div>
+    <div class="room">
+      <span class="chip"><span class="dot" id="roomDot"></span><span id="roomText">單人模式</span></span>
+      <button class="ghost" id="connectBtn">雙人連線</button>
+    </div>
+  </header>
+
+  <section class="sheet" id="sheet" hidden>
+    <h2>和朋友一起玩</h2>
+    <p>一人建立房間並設定密碼，把代碼和密碼傳給對方。每張卡兩人各自寫下答案，都寫好才一起揭曉。建立房間的人要一直開著這個頁面。</p>
+    <div class="field"><label for="nick">你的暱稱</label><input id="nick" maxlength="12" placeholder="例如：Ellen"></div>
+    <div class="field"><label for="pw">房間密碼</label><input id="pw" maxlength="20" placeholder="建立或加入都要填" autocomplete="off"></div>
+    <div class="field code"><label for="codeIn">房間代碼（加入時填）</label><input id="codeIn" maxlength="4" placeholder="K7Q2" autocomplete="off"></div>
+    <div class="actions">
+      <button class="gold" id="createBtn">建立房間</button>
+      <button class="ghost" id="joinBtn">加入房間</button>
+      <span class="msg" id="sheetMsg"></span>
+    </div>
+  </section>
+
+  <section class="invite" id="invite" hidden>
+    <div><span>房間代碼</span><br><b id="inviteCode">----</b></div>
+    <span>把代碼和密碼傳給朋友，或傳邀請連結（密碼另外給）。</span>
+    <button class="ghost" id="copyLink">複製邀請連結</button>
+  </section>
+
+  <nav class="levels" aria-label="選擇層級">
+    <button class="lv" data-lv="1" style="--c:var(--l1)" aria-pressed="true"><b>暖身</b><small>喜好與日常</small></button>
+    <button class="lv" data-lv="2" style="--c:var(--l2)" aria-pressed="false"><b>深入</b><small>想法與經歷</small></button>
+    <button class="lv" data-lv="3" style="--c:var(--l3)" aria-pressed="false"><b>靠近</b><small>你和我之間</small></button>
+  </nav>
+
+  <section class="table" aria-label="牌桌">
+    <div class="fan" id="fan"></div>
+    <div class="empty" id="empty" hidden>
+      <p>這一層的牌都抽完了。</p>
+      <button class="ghost" id="reshuffle">重新洗牌</button>
+    </div>
+  </section>
+  <p class="hint" id="hint">憑直覺選一張牌</p>
+</div>
+
+<div class="stage" id="stage" hidden role="dialog" aria-modal="true" aria-labelledby="bigQ">
+  <div class="big" id="big">
+    <div class="flip" id="flip">
+      <div class="face back"><span id="bigMark">暖</span></div>
+      <div class="face front">
+        <span class="tag" id="bigTag">暖身</span>
+        <p class="q" id="bigQ"></p>
+        <span class="mark" id="bigMark2">暖</span>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <p class="say" id="soloSay">先想一想，說出你的答案，再聽對方的。</p>
+    <div id="compose" hidden>
+      <textarea id="ansIn" maxlength="280" placeholder="寫下你的答案，兩人都送出前對方看不到"></textarea>
+      <div class="row"><span class="status" id="others"></span><button class="gold" id="sendAns">送出答案</button></div>
+    </div>
+    <div id="waiting" class="status" hidden></div>
+    <div class="answers" id="answers" hidden></div>
+  </div>
+  <div class="closeRow"><button class="ghost" id="closeBtn">回到牌堆</button></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const LEVELS = {
+  1:{name:"暖身",mark:"暖",qs:[
+    "最近一次笑到停不下來是因為什麼？",
+    "如果明天放假一整天，沒有任何安排，你會怎麼過？",
+    "你有沒有一首會反覆聽的歌？它讓你想到什麼？",
+    "小時候最常被大人說的一句話是什麼？",
+    "你最拿手的一道料理或一個小技能是什麼？",
+    "最近讓你覺得「生活還不錯」的小事是什麼？",
+    "如果可以搬到任何一座城市住一年，你會選哪裡？",
+    "你有什麼習慣，是熟一點的人才會發現的？",
+    "哪個季節最像你？為什麼？",
+    "理想的星期天早上是什麼樣子？",
+    "最近買過最值得的一樣東西是什麼？",
+    "你小時候的夢想職業是什麼？"
+  ]},
+  2:{name:"深入",mark:"深",qs:[
+    "有哪件事是你曾經很相信，後來改變想法的？",
+    "到目前為止，哪一年對你影響最大？",
+    "你覺得別人對你最常見的誤會是什麼？",
+    "最近一次覺得自己長大了，是什麼時候？",
+    "有沒有一個決定，你還會想「如果當初選另一條路」？",
+    "你從家人身上學到最重要的一件事是什麼？",
+    "什麼樣的事情最容易讓你生氣？",
+    "壓力很大的時候，你怎麼讓自己好起來？",
+    "有沒有一個人，在你不知道的時候改變了你？",
+    "十年後的你，會最感謝現在的你做了什麼？",
+    "你最怕失去的東西是什麼？",
+    "有什麼事你一直想做還沒開始？是什麼讓你停住？"
+  ]},
+  3:{name:"靠近",mark:"近",qs:[
+    "你對我的第一印象是什麼？現在有變嗎？",
+    "有沒有什麼事，你一直想問我卻沒問過？",
+    "你覺得我們最像的地方是什麼？最不像的呢？",
+    "我做過哪件事，讓你覺得被理解？",
+    "說出我的一個優點，但不能是外表。",
+    "有沒有什麼時候，你希望我多做一點或少做一點？",
+    "你覺得我最近可能在煩惱什麼？",
+    "跟我在一起時，你最放鬆的時刻是什麼樣子？",
+    "如果我們一起完成一件事，你最想做什麼？",
+    "你希望我更了解你的哪一面？",
+    "有哪句話，你一直想對我說？",
+    "聊完今天，你對我有什麼新的認識？"
+  ]}
+};
+
+const $ = id => document.getElementById(id);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const PREFIX = "knowyou-cards-room-";
+
+/* mode: "solo" | "host" | "guest" */
+let mode = "solo", code = "", connected = false, clock = 0;
+let peer = null, hostConn = null, roomPw = "", selfId = "";
+const members = new Map();      // host only: conn.peer -> {conn, presence}
+let remotePeers = [];           // guest only: list broadcast by the host
+let mine = { level:{lv:1,c:0}, used:[] };
+let seen = new Set();
+let shownN = null, dismissedN = null, fanKey = "";
+const soloSeed = Math.random().toString(36).slice(2);
+
+/* ---------- helpers ---------- */
+function hash(s){let h=2166136261;for(const ch of s){h^=ch.codePointAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function orderFor(lv){
+  const r = rng(hash((mode==="solo"?soloSeed:code)+":"+lv));
+  const a = LEVELS[lv].qs.map((_,i)=>i);
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a.map(i=>lv+"-"+i);
+}
+const validId = id => typeof id==="string" && /^[123]-\d{1,2}$/.test(id) && LEVELS[id[0]].qs[+id.slice(2)] !== undefined;
+const qOf = id => LEVELS[id[0]].qs[+id.slice(2)];
+const cleanName = n => (typeof n === "string" && n.trim()) ? n.trim().slice(0,12) : "朋友";
+function toast(t){ const el=$("toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,2600); }
+
+/* Keep only the fields the game uses, with sane types and sizes. */
+function sanitize(p){
+  const o = {};
+  if (!p || typeof p !== "object") return o;
+  if (typeof p.nick === "string") o.nick = p.nick.slice(0,12);
+  if (p.level && [1,2,3].includes(p.level.lv) && Number.isFinite(p.level.c)) o.level = {lv:p.level.lv, c:p.level.c};
+  if (p.draw && validId(p.draw.id) && Number.isFinite(p.draw.n)) o.draw = {id:p.draw.id, n:p.draw.n};
+  if (Array.isArray(p.used)) o.used = p.used.filter(validId).slice(-36);
+  if (p.ans && Number.isFinite(p.ans.n)) o.ans = {n:p.ans.n, text: typeof p.ans.text==="string" ? p.ans.text.slice(0,280) : undefined, done: !!p.ans.done};
+  return o;
+}
+
+/* Everyone at the table, as {peer, sameTab, presence}. Labels are identical on every device. */
+function participants(){
+  if (mode === "host"){
+    const list = [{peer:"host", sameTab:true, presence:mine}];
+    members.forEach((m, id) => { if (m.ok) list.push({peer:id, sameTab:false, presence:m.presence}); });
+    return list;
+  }
+  if (mode === "guest"){
+    const list = remotePeers.map(p => p.peer === selfId ? {peer:p.peer, sameTab:true, presence:mine} : {peer:p.peer, sameTab:false, presence:p.presence});
+    if (!list.some(p => p.sameTab)) list.push({peer:selfId || "me", sameTab:true, presence:mine});
+    return list;
+  }
+  return [{peer:"me", sameTab:true, presence:mine}];
+}
+
+function derive(){
+  const ps = participants();
+  let level = null, lvPeer = "", draw = null, drawPeer = "";
+  for (const p of ps){
+    const pr = p.presence || {};
+    const L = pr.level;
+    if (L && [1,2,3].includes(L.lv) && Number.isFinite(L.c)){
+      clock = Math.max(clock, L.c);
+      if (!level || L.c > level.c || (L.c === level.c && p.peer > lvPeer)){ level = L; lvPeer = p.peer; }
+    }
+    const D = pr.draw;
+    if (D && validId(D.id) && Number.isFinite(D.n)){
+      clock = Math.max(clock, D.n);
+      if (!draw || D.n > draw.n || (D.n === draw.n && p.peer > drawPeer)){ draw = D; drawPeer = p.peer; }
+    }
+    if (Array.isArray(pr.used)) pr.used.forEach(id => { if (validId(id)) seen.add(id); });
+  }
+  return { ps, lv: level ? level.lv : 1, draw };
+}
+
+function setMine(patch){
+  for (const k in patch){ if (patch[k] === null) delete mine[k]; else mine[k] = patch[k]; }
+  if (mode === "host") broadcast();
+  if (mode === "guest" && hostConn && hostConn.open) hostConn.send({t:"presence", patch});
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  const { ps, lv, draw } = derive();
+  $("app").style.setProperty("--c", `var(--l${lv})`);
+  document.querySelectorAll(".lv").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.lv === lv)));
+
+  if (draw && draw.n !== shownN){
+    shownN = draw.n;
+    $("ansIn").value = "";
+    openCard(draw, document.querySelector(`.fc[data-id="${draw.id}"]`));
+  }
+  if (draw) seen.add(draw.id);
+
+  renderFan(lv);
+  renderRoom(ps);
+  $("stage").hidden = !(draw && dismissedN !== draw.n);
+  if (draw && !$("stage").hidden) renderPanel(ps, draw);
+}
+
+function renderFan(lv){
+  const ids = orderFor(lv).filter(id => !seen.has(id));
+  const fan = $("fan");
+  $("empty").hidden = ids.length > 0;
+  $("reshuffle").hidden = mode !== "solo";
+  $("hint").textContent = ids.length ? `憑直覺選一張牌 · 還有 ${ids.length} 張` : "換一層繼續吧";
+  fan.hidden = ids.length === 0;
+  const key = lv + "|" + ids.join(",") + "|" + fan.clientWidth;
+  if (key === fanKey) return;
+  fanKey = key;
+  fan.textContent = "";
+  const m = ids.length;
+  const cw = Math.min(104, Math.max(58, innerWidth * .15));
+  const maxA = Math.min(26, m * 2.6);
+  const R = cw * 1.4 * 2.6;
+  const W = Math.max(0, Math.min(m * cw * 0.45, fan.clientWidth - 2 * R * Math.sin(maxA * Math.PI/180) - cw * 1.3));
+  ids.forEach((id, i) => {
+    const t = m > 1 ? i/(m-1) - .5 : 0;
+    const b = document.createElement("button");
+    b.className = "fc";
+    b.dataset.id = id;
+    b.style.setProperty("--x", (t*W).toFixed(1) + "px");
+    b.style.setProperty("--a", (t*2*maxA).toFixed(2) + "deg");
+    b.setAttribute("aria-label", `抽第 ${i+1} 張牌`);
+    b.innerHTML = `<div class="back"><span>${LEVELS[lv].mark}</span></div>`;
+    fan.appendChild(b);
+  });
+}
+
+function renderRoom(ps){
+  $("invite").hidden = mode !== "host";
+  if (mode === "solo"){
+    $("roomText").textContent = "單人模式";
+    $("roomDot").className = "dot";
+    $("connectBtn").textContent = "雙人連線";
+    return;
+  }
+  const others = ps.filter(p => !p.sameTab).map(p => cleanName(p.presence && p.presence.nick));
+  $("roomText").textContent = `房間 ${code} · ` + (others.length ? `你、${others.join("、")}` : "等朋友加入");
+  $("roomDot").className = "dot" + (connected ? " on" : "");
+  $("connectBtn").textContent = "離開房間";
+  $("inviteCode").textContent = code;
+}
+
+function renderPanel(ps, draw){
+  const duo = mode !== "solo";
+  $("soloSay").hidden = duo;
+  if (!duo){ $("compose").hidden = $("waiting").hidden = $("answers").hidden = true; return; }
+
+  const others = ps.filter(p => !p.sameTab);
+  const wrote = p => !!(p.presence && p.presence.ans && p.presence.ans.n === draw.n);
+  const shown = p => wrote(p) && typeof p.presence.ans.text === "string";
+  const myDone = !!(mine.ans && mine.ans.n === draw.n);
+  const allDone = myDone && others.length > 0 && others.every(shown);
+
+  $("compose").hidden = myDone;
+  $("others").textContent = others.length
+    ? others.map(p => `${cleanName(p.presence.nick)}${wrote(p) ? " 寫好了" : " 還在想…"}`).join("　")
+    : `等朋友加入房間 ${code}`;
+
+  $("waiting").hidden = !myDone || allDone;
+  if (myDone && !allDone){
+    const pending = others.filter(p => !wrote(p)).map(p => cleanName(p.presence.nick));
+    $("waiting").textContent = !others.length ? "已送出，朋友加入後就能揭曉。"
+      : pending.length ? `已送出，等 ${pending.join("、")} 寫完就一起揭曉。` : "揭曉中…";
+  }
+
+  const box = $("answers");
+  box.hidden = !allDone;
+  if (allDone){
+    const rows = [{who:"你", text:mine.ans.text}].concat(others.map(p => ({who:cleanName(p.presence.nick), text:p.presence.ans.text})));
+    const k = draw.n + JSON.stringify(rows);
+    if (box.dataset.k !== k){
+      box.dataset.k = k;
+      box.textContent = "";
+      rows.forEach(r => {
+        const d = document.createElement("div"); d.className = "ans";
+        const w = document.createElement("div"); w.className = "who"; w.textContent = r.who;
+        const t = document.createElement("p"); t.textContent = r.text || "（沒有寫）";
+        d.append(w, t); box.appendChild(d);
+      });
+    }
+  }
+}
+
+/* ---------- card flight ---------- */
+function openCard(draw, src){
+  const lvl = LEVELS[draw.id[0]];
+  $("bigQ").textContent = qOf(draw.id);
+  $("bigTag").textContent = `第${"一二三"[draw.id[0]-1]}層・${lvl.name}`;
+  $("bigMark").textContent = $("bigMark2").textContent = lvl.mark;
+  dismissedN = null;
+  const stage = $("stage"), big = $("big"), flip = $("flip");
+  stage.style.setProperty("--c", `var(--l${draw.id[0]})`);
+  stage.hidden = false;
+  flip.classList.remove("flipped");
+  big.style.transition = "none"; flip.style.transition = "none";
+  if (src && !reduce){
+    const r = src.getBoundingClientRect(), b = big.getBoundingClientRect();
+    const s = src.offsetWidth / b.width;
+    const dx = (r.left + r.width/2) - (b.left + b.width/2);
+    const dy = (r.top + r.height/2) - (b.top + b.height/2);
+    const a = parseFloat(src.style.getPropertyValue("--a")) || 0;
+    big.style.transform = `translate(${dx}px,${dy}px) rotate(${a}deg) scale(${s})`;
+    $("fan").classList.add("busy");
+  } else {
+    big.style.transform = "scale(.92)";
+  }
+  void big.offsetWidth;
+  big.style.transition = ""; flip.style.transition = "";
+  requestAnimationFrame(() => {
+    big.style.transform = "";
+    setTimeout(() => { flip.classList.add("flipped"); $("fan").classList.remove("busy"); }, reduce ? 0 : 480);
+  });
+}
+
+/* ---------- actions ---------- */
+function pick(id){
+  if (!$("stage").hidden) return;
+  derive();
+  setMine({ draw:{n:clock + 1, id}, used:(mine.used || []).concat(id).slice(-36) });
+}
+function setLevel(lv){ derive(); setMine({ level:{lv, c:clock + 1} }); }
+function closeStage(){ const { draw } = derive(); if (draw) dismissedN = draw.n; render(); }
+
+$("fan").addEventListener("click", e => { const b = e.target.closest(".fc"); if (b) pick(b.dataset.id); });
+document.querySelectorAll(".lv").forEach(b => b.addEventListener("click", () => setLevel(+b.dataset.lv)));
+$("closeBtn").addEventListener("click", closeStage);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("stage").hidden) closeStage(); });
+$("reshuffle").addEventListener("click", () => {
+  const { lv } = derive();
+  [...seen].forEach(id => { if (id[0] == lv) seen.delete(id); });
+  mine.used = (mine.used || []).filter(id => id[0] != lv);
+  fanKey = ""; render();
+});
+$("sendAns").addEventListener("click", () => {
+  const { draw } = derive();
+  if (draw) setMine({ ans:{ n:draw.n, text:$("ansIn").value.trim().slice(0,280) } });
+});
+let rT; addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(() => { fanKey = ""; render(); }, 120); });
+
+/* ---------- rooms (PeerJS, host relays) ---------- */
+function resetToSolo(note){
+  try { hostConn && hostConn.close(); } catch(e) {}
+  members.forEach(m => { try { m.conn.close(); } catch(e) {} });
+  members.clear();
+  try { peer && peer.destroy(); } catch(e) {}
+  peer = null; hostConn = null; remotePeers = []; selfId = ""; roomPw = "";
+  mode = "solo"; code = ""; connected = false;
+  seen = new Set(); shownN = null; dismissedN = null; fanKey = "";
+  mine = { level:{lv:1, c:0}, used:[] };
+  if (note) toast(note);
+  render();
+}
+
+/* Host sends everyone the table. Answers stay hidden until every player answered the current card. */
+function broadcast(){
+  const { ps, draw } = derive();
+  const allDone = draw && ps.length > 1 && ps.every(p => p.presence && p.presence.ans && p.presence.ans.n === draw.n);
+  const list = ps.map(p => {
+    const pr = Object.assign({}, p.presence);
+    if (pr.ans && !(allDone && pr.ans.n === draw.n)) pr.ans = { n:pr.ans.n, done:true };
+    return { peer:p.peer, presence:pr };
+  });
+  members.forEach((m, id) => { if (m.ok && m.conn.open) m.conn.send({ t:"state", self:id, peers:list }); });
+}
+
+function genCode(){ const s = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let c = ""; for (let i=0;i<4;i++) c += s[Math.floor(Math.random()*s.length)]; return c; }
+
+function readForm(){
+  const nick = $("nick").value.trim().slice(0,12);
+  const pw = $("pw").value.trim();
+  if (!nick){ $("sheetMsg").textContent = "先填一個暱稱，對方才知道是你。"; $("nick").focus(); return null; }
+  if (!pw){ $("sheetMsg").textContent = "請設定或輸入房間密碼。"; $("pw").focus(); return null; }
+  if (typeof Peer === "undefined"){ $("sheetMsg").textContent = "連線元件沒有載入，請檢查網路後重新整理。"; return null; }
+  try { localStorage.setItem("kyc-nick", nick); } catch(e) {}
+  return { nick, pw };
+}
+
+function createRoom(tries = 0){
+  const f = readForm(); if (!f) return;
+  const c = genCode();
+  $("sheetMsg").textContent = "建立房間中…";
+  const p = new Peer(PREFIX + c);
+  p.on("open", () => {
+    peer = p; mode = "host"; code = c; roomPw = f.pw; connected = true;
+    seen = new Set(); shownN = null; dismissedN = null; fanKey = "";
+    mine = { nick:f.nick, level:{lv:1, c:0}, used:[] };
+    $("sheet").hidden = true; $("sheetMsg").textContent = "";
+    render();
+  });
+  p.on("connection", conn => {
+    conn.on("data", d => {
+      if (!d || typeof d !== "object") return;
+      const m = members.get(conn.peer);
+      if (d.t === "hello"){
+        if (d.pw !== roomPw){ conn.send({t:"denied"}); setTimeout(() => conn.close(), 300); return; }
+        if ([...members.values()].filter(x => x.ok).length >= 5){ conn.send({t:"full"}); setTimeout(() => conn.close(), 300); return; }
+        members.set(conn.peer, { conn, ok:true, presence: sanitize({ nick:d.nick, used:[] }) });
+        conn.send({ t:"welcome", self:conn.peer });
+        toast(`${cleanName(d.nick)} 加入了`);
+        broadcast(); render();
+      } else if (d.t === "presence" && m && m.ok){
+        const patch = sanitize(d.patch);
+        for (const k in d.patch || {}) if (d.patch[k] === null) delete m.presence[k];
+        Object.assign(m.presence, patch);
+        broadcast(); render();
+      }
+    });
+    conn.on("close", () => {
+      const m = members.get(conn.peer);
+      members.delete(conn.peer);
+      if (m && m.ok){ toast(`${cleanName(m.presence.nick)} 離開了`); broadcast(); render(); }
+    });
+  });
+  p.on("disconnected", () => { connected = false; render(); try { p.reconnect(); } catch(e) {} });
+  p.on("error", err => {
+    if (err.type === "unavailable-id" && tries < 3){ p.destroy(); createRoom(tries + 1); return; }
+    if (mode === "solo"){ $("sheetMsg").textContent = "沒能建立房間，稍等一下再試一次。"; p.destroy(); }
+  });
+}
+
+function joinRoom(){
+  const f = readForm(); if (!f) return;
+  const c = $("codeIn").value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{4}$/.test(c)){ $("sheetMsg").textContent = "房間代碼是 4 個英數字。"; $("codeIn").focus(); return; }
+  $("sheetMsg").textContent = "連線中…";
+  const p = new Peer();
+  let settled = false;
+  const fail = msg => { if (settled) return; settled = true; $("sheetMsg").textContent = msg; try { p.destroy(); } catch(e) {} };
+  const timer = setTimeout(() => fail("找不到這個房間。確認代碼正確，而且建立房間的人還開著頁面。"), 12000);
+  p.on("error", err => {
+    clearTimeout(timer);
+    if (mode === "guest"){ resetToSolo("和房間的連線中斷了"); return; }
+    fail(err.type === "peer-unavailable" ? "找不到這個房間。確認代碼正確，而且建立房間的人還開著頁面。" : "連線失敗，稍等一下再試一次。");
+  });
+  p.on("open", () => {
+    const conn = p.connect(PREFIX + c, { reliable:true });
+    conn.on("open", () => conn.send({ t:"hello", nick:f.nick, pw:f.pw }));
+    conn.on("data", d => {
+      if (!d || typeof d !== "object") return;
+      if (d.t === "denied"){ clearTimeout(timer); fail("密碼不對，再確認一次。"); return; }
+      if (d.t === "full"){ clearTimeout(timer); fail("這個房間已經滿了。"); return; }
+      if (d.t === "welcome"){
+        clearTimeout(timer); settled = true;
+        peer = p; hostConn = conn; selfId = d.self; mode = "guest"; code = c; connected = true;
+        seen = new Set(); shownN = null; dismissedN = null; fanKey = "";
+        mine = { nick:f.nick, used:[] };
+        conn.send({ t:"presence", patch:mine });
+        $("sheet").hidden = true; $("sheetMsg").textContent = "";
+        history.replaceState(null, "", location.pathname);
+        render(); return;
+      }
+      if (d.t === "state" && mode === "guest" && Array.isArray(d.peers)){
+        selfId = d.self || selfId;
+        remotePeers = d.peers.slice(0, 6).map(x => ({ peer:String(x.peer).slice(0,64), presence:sanitize(x.presence) }));
+        render();
+      }
+    });
+    conn.on("close", () => { if (mode === "guest") resetToSolo("房主離開了，房間已關閉"); });
+  });
+}
+
+$("connectBtn").addEventListener("click", () => {
+  if (mode !== "solo"){ resetToSolo(); return; }
+  $("sheet").hidden = !$("sheet").hidden;
+  if (!$("sheet").hidden) ($("nick").value ? $("pw") : $("nick")).focus();
+});
+$("createBtn").addEventListener("click", () => createRoom());
+$("joinBtn").addEventListener("click", joinRoom);
+$("copyLink").addEventListener("click", async () => {
+  const link = location.origin + location.pathname + "?room=" + code;
+  try { await navigator.clipboard.writeText(link); toast("已複製邀請連結，密碼記得另外給"); }
+  catch(e){ toast(link); }
+});
+addEventListener("beforeunload", () => { try { peer && peer.destroy(); } catch(e) {} });
+
+/* Invite links open the join form with the code filled in. */
+try { $("nick").value = localStorage.getItem("kyc-nick") || ""; } catch(e) {}
+const invited = new URLSearchParams(location.search).get("room");
+if (invited && /^[A-Za-z0-9]{4}$/.test(invited)){
+  $("codeIn").value = invited.toUpperCase();
+  $("sheet").hidden = false;
+  $("sheetMsg").textContent = "填好暱稱和密碼，按「加入房間」。";
+}
+
+render();
+</script>
+</body>
+</html>
