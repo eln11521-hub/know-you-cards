@@ -6,17 +6,20 @@
 <title>認識你卡牌</title>
 <meta name="description" content="從一排牌中抽卡，和朋友各自寫下答案再一起揭曉。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="preload" href="fonts/MantouSans-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 /* Layout: a card table at night. Header and level chips on top, a fanned row of face-down
    cards in the middle; a picked card flies up into a centered stage with the answer panel. */
+/* 饅頭黑體 Mantou Sans (OFL-1.1, fonts/OFL.txt). One weight only, so it covers 100–900 and bold is never faked. */
+@font-face{font-family:"Mantou Sans";src:url("fonts/MantouSans-Regular.ttf") format("truetype");font-weight:100 900;font-display:swap}
 :root{
   color-scheme:dark;
   --table:#121c1d; --felt:#1d2e2e; --ink:#efe9dc; --muted:#98aaa5; --line:#2e4342;
   --gold:#d6b26a; --paper:#f3eee3; --paper-ink:#2b2622; --panel:#192627;
   --l1:#2e6a87; --l2:#69407c; --l3:#983a54;
-  --display:"LXGW WenKai TC","Kaiti TC","STKaiti",serif;
+  --display:"Mantou Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
   --body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
   --cw:clamp(58px,15vw,104px);
 }
