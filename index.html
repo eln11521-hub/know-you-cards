@@ -12,14 +12,15 @@
 <style>
 /* Layout: a card table at night. Header and level chips on top, a fanned row of face-down
    cards in the middle; a picked card flies up into a centered stage with the answer panel. */
-/* 饅頭黑體 Mantou Sans (OFL-1.1, fonts/OFL.txt). One weight only, so it covers 100–900 and bold is never faked. */
+/* 饅頭黑體 Mantou Sans (OFL-1.1, fonts/OFL.txt), main title only. One weight only, so it covers 100–900 and bold is never faked. */
 @font-face{font-family:"Mantou Sans";src:url("fonts/MantouSans-Regular.ttf") format("truetype");font-weight:100 900;font-display:swap}
 :root{
   color-scheme:dark;
   --table:#121c1d; --felt:#1d2e2e; --ink:#efe9dc; --muted:#98aaa5; --line:#2e4342;
   --gold:#d6b26a; --paper:#f3eee3; --paper-ink:#2b2622; --panel:#192627;
   --l1:#2e6a87; --l2:#69407c; --l3:#983a54;
-  --display:"Mantou Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --display:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --title:"Mantou Sans",var(--display);
   --body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
   --cw:clamp(58px,15vw,104px);
 }
@@ -35,7 +36,7 @@ button{font:inherit;color:inherit}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
 header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-h1{font-family:var(--display);font-weight:700;font-size:clamp(1.7rem,5vw,2.3rem);margin:0;letter-spacing:.06em;line-height:1.2}
+h1{font-family:var(--title);font-weight:700;font-size:clamp(1.7rem,5vw,2.3rem);margin:0;letter-spacing:.06em;line-height:1.2}
 .sub{margin:4px 0 0;color:var(--muted);font-size:.9rem}
 .room{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.85rem;background:rgba(0,0,0,.18);display:flex;align-items:center;gap:8px}
